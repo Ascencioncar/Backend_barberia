@@ -1,50 +1,58 @@
-// app.js (o index.js)
-// ---------------------
+// app.js
+// ------------------
+// Proyecto Node.js para la API de la barbería, con CORS habilitado.
+// Utiliza Express y pg para conectar a PostgreSQL.
+// ------------------
 
 const express = require('express');
+const cors = require('cors');            // 1) Importar cors
 const { Pool } = require('pg');
 require('dotenv').config();
 
 const app = express();
 
-// --------------------------------------------------------
-// 1) Configuración de conexión a PostgreSQL
-// --------------------------------------------------------
+// =====================================================
+// 2) Configurar CORS ANTES de cualquier ruta
+//    Permitir todos los orígenes (útil en desarrollo).
+//    En producción, podrías limitar sólo a tu frontend:
+//      app.use(cors({ origin: 'https://tu-frontend.vercel.app' }));
+// =====================================================
+app.use(cors());
+
+// =====================================================
+// 3) Middlewares
+//    Parsear JSON en body de peticiones
+// =====================================================
+app.use(express.json());
+
+// =====================================================
+// 4) Configuración de conexión a PostgreSQL
+//
+//    Asume que en tu .env tienes definidas:
+//      PGHOST, PGUSER, PGPASSWORD, PGDATABASE, PGPORT
+// =====================================================
 const pool = new Pool({
   ssl: {
     rejectUnauthorized: false
   }
 });
 
-// Cada vez que llamemos a pool.query(...) usaremos la conexión definida en /etc/variables de entorno.
-// Asegúrate de tener definidas en tu .env (o en tu entorno) las variables:
-//   PGHOST, PGUSER, PGPASSWORD, PGDATABASE, PGPORT
-// Ejemplo de .env:
-//   PGHOST=localhost
-//   PGUSER=mi_usuario
-//   PGPASSWORD=mi_contraseña
-//   PGDATABASE=mi_basedatos
-//   PGPORT=5432
 
 
-
-app.use(express.json());
-
-
-// --------------------------------------------------------
-// 2) RUTA RAÍZ (para saber que el servidor está arriba)
-// --------------------------------------------------------
+// =====================================================
+// 5) RUTA RAÍZ (para comprobar que el servidor arranca)
+// =====================================================
 app.get('/', (req, res) => {
   res.send('Sistema barbería arriba');
 });
 
 
 
-// --------------------------------------------------------
-// 3) ENDPOINTS PARA “barberos”
-// --------------------------------------------------------
+// =====================================================
+// 6) ENDPOINTS PARA “barberos” (CRUD completo)
+// =====================================================
 
-// Listar todos los barberos
+// a) Listar todos los barberos
 app.get('/barberos', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM barberos ORDER BY id_barbero');
@@ -55,7 +63,22 @@ app.get('/barberos', async (req, res) => {
   }
 });
 
-// Agregar un nuevo barbero
+// b) Obtener un barbero por ID
+app.get('/barberos/:id', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  try {
+    const result = await pool.query('SELECT * FROM barberos WHERE id_barbero = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Barbero no encontrado' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error en GET /barberos/:id:', error);
+    res.status(500).json({ error: 'Error al obtener barbero por ID' });
+  }
+});
+
+// c) Crear un nuevo barbero
 app.post('/barberos', async (req, res) => {
   const { nombre, especialidad } = req.body;
   if (!nombre) {
@@ -75,22 +98,7 @@ app.post('/barberos', async (req, res) => {
   }
 });
 
-// Obtener un barbero por ID
-app.get('/barberos/:id', async (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  try {
-    const result = await pool.query('SELECT * FROM barberos WHERE id_barbero = $1', [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Barbero no encontrado' });
-    }
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Error en GET /barberos/:id:', error);
-    res.status(500).json({ error: 'Error al obtener barbero por ID' });
-  }
-});
-
-// Actualizar un barbero (nombre o especialidad)
+// d) Actualizar un barbero (nombre o especialidad)
 app.put('/barberos/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { nombre, especialidad } = req.body;
@@ -98,13 +106,13 @@ app.put('/barberos/:id', async (req, res) => {
     return res.status(400).json({ error: 'Debe enviar al menos "nombre" o "especialidad" para actualizar' });
   }
   try {
-    // Primero verifico que exista
+    // Verificar que exista
     const existing = await pool.query('SELECT * FROM barberos WHERE id_barbero = $1', [id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: 'Barbero no encontrado' });
     }
 
-    // Armo la consulta dinámicamente
+    // Armar query dinámico
     const fieldsToUpdate = [];
     const values = [];
     let idx = 1;
@@ -132,7 +140,7 @@ app.put('/barberos/:id', async (req, res) => {
   }
 });
 
-// Eliminar un barbero
+// e) Eliminar un barbero
 app.delete('/barberos/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   try {
@@ -149,11 +157,11 @@ app.delete('/barberos/:id', async (req, res) => {
 
 
 
-// --------------------------------------------------------
-// 4) ENDPOINTS PARA “clientes”
-// --------------------------------------------------------
+// =====================================================
+// 7) ENDPOINTS PARA “clientes” (CRUD completo)
+// =====================================================
 
-// Listar todos los clientes
+// a) Listar todos los clientes
 app.get('/clientes', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM clientes ORDER BY id_cliente');
@@ -164,7 +172,7 @@ app.get('/clientes', async (req, res) => {
   }
 });
 
-// Obtener un cliente por ID
+// b) Obtener un cliente por ID
 app.get('/clientes/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   try {
@@ -179,7 +187,7 @@ app.get('/clientes/:id', async (req, res) => {
   }
 });
 
-// Crear un nuevo cliente
+// c) Crear un nuevo cliente
 app.post('/clientes', async (req, res) => {
   const { nombre, telefono, correo } = req.body;
   if (!nombre || !telefono || !correo) {
@@ -195,7 +203,7 @@ app.post('/clientes', async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error en POST /clientes:', error);
-    // Capturar violaciones de UNIQUE (teléfono o correo duplicado)
+    // Capturar violación de UNIQUE (teléfono o correo duplicado)
     if (error.code === '23505') {
       res.status(409).json({ error: 'Ya existe un cliente con ese teléfono o correo' });
     } else {
@@ -204,7 +212,7 @@ app.post('/clientes', async (req, res) => {
   }
 });
 
-// Actualizar un cliente (nombre, teléfono o correo)
+// d) Actualizar un cliente (nombre, teléfono o correo)
 app.put('/clientes/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { nombre, telefono, correo } = req.body;
@@ -218,7 +226,7 @@ app.put('/clientes/:id', async (req, res) => {
       return res.status(404).json({ error: 'Cliente no encontrado' });
     }
 
-    // Armar la consulta dinámicamente
+    // Armar query dinámico
     const fieldsToUpdate = [];
     const values = [];
     let idx = 1;
@@ -254,7 +262,7 @@ app.put('/clientes/:id', async (req, res) => {
   }
 });
 
-// Eliminar un cliente
+// e) Eliminar un cliente
 app.delete('/clientes/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   try {
@@ -271,12 +279,12 @@ app.delete('/clientes/:id', async (req, res) => {
 
 
 
-// --------------------------------------------------------
-// 5) ENDPOINTS PARA “bloqueos_barbero”
-// --------------------------------------------------------
+// =====================================================
+// 8) ENDPOINTS PARA “bloqueos_barbero”
+// =====================================================
 
-// Listar bloqueos (opcionalmente filtrar por id_barbero o por fecha)
-// Ejemplo: GET /bloqueos?barberoId=2&fecha=2025-06-13
+// a) Listar bloqueos (opcional filtrar por id_barbero y/o fecha)
+//    Ejemplo: GET /bloqueos?barberoId=2&fecha=2025-06-13
 app.get('/bloqueos', async (req, res) => {
   const { barberoId, fecha } = req.query;
   const conditions = [];
@@ -287,7 +295,7 @@ app.get('/bloqueos', async (req, res) => {
     conditions.push(`id_barbero = $${values.length}`);
   }
   if (fecha) {
-    values.push(fecha); // se asume 'YYYY-MM-DD'
+    values.push(fecha); // 'YYYY-MM-DD'
     conditions.push(`fecha = $${values.length}`);
   }
 
@@ -306,7 +314,7 @@ app.get('/bloqueos', async (req, res) => {
   }
 });
 
-// Crear un nuevo bloqueo
+// b) Crear un nuevo bloqueo
 app.post('/bloqueos', async (req, res) => {
   const { id_barbero, fecha, hora_inicio, hora_fin, motivo } = req.body;
   if (!id_barbero || !fecha || !hora_inicio || !hora_fin) {
@@ -314,7 +322,7 @@ app.post('/bloqueos', async (req, res) => {
   }
 
   try {
-    // 1) Verificar solapamientos con otros bloqueos activos
+    // 1) Verificar solapamientos con bloqueos activos
     const overlapQuery = `
       SELECT 1
         FROM bloqueos_barbero
@@ -349,11 +357,10 @@ app.post('/bloqueos', async (req, res) => {
   }
 });
 
-// Eliminar (o desactivar) un bloqueo
+// c) Eliminar (desactivar) un bloqueo
 app.delete('/bloqueos/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   try {
-    // Simplemente marcaremos el bloqueo como inactivo (estado='inactivo')
     const result = await pool.query(
       `UPDATE bloqueos_barbero
          SET estado = 'inactivo'
@@ -373,11 +380,11 @@ app.delete('/bloqueos/:id', async (req, res) => {
 
 
 
-// --------------------------------------------------------
-// 6) ENDPOINTS PARA “reservas”
-// --------------------------------------------------------
+// =====================================================
+// 9) ENDPOINTS PARA “reservas”
+// =====================================================
 
-// Listar todas las reservas (opcionalmente filtrar por id_cliente o id_barbero o fecha)
+// a) Listar todas las reservas (opcional filtrar por clienteId, barberoId, fecha)
 app.get('/reservas', async (req, res) => {
   const { clienteId, barberoId, fecha } = req.query;
   const conditions = [];
@@ -426,7 +433,7 @@ app.get('/reservas', async (req, res) => {
   }
 });
 
-// Obtener una reserva por su ID
+// b) Obtener una reserva por su ID
 app.get('/reservas/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   try {
@@ -458,7 +465,7 @@ app.get('/reservas/:id', async (req, res) => {
   }
 });
 
-// Crear una nueva reserva
+// c) Crear una nueva reserva
 app.post('/reservas', async (req, res) => {
   const { cliente, reserva } = req.body;
   /**
@@ -473,8 +480,8 @@ app.post('/reservas', async (req, res) => {
    *     "servicio_nombre": "Corte De Cabello",
    *     "servicio_precio": 18000.00,
    *     "id_barbero": 1,
-   *     "fecha": "2025-06-05",       -- YYYY-MM-DD
-   *     "hora": "10:00:00"           -- HH:MM:SS
+   *     "fecha": "2025-06-05",       // YYYY-MM-DD
+   *     "hora": "10:00:00"           // HH:MM:SS
    *   }
    * }
    */
@@ -616,7 +623,7 @@ app.post('/reservas', async (req, res) => {
   }
 });
 
-// Cancelar (o marcar como “cancelado”) una reserva
+// d) Cancelar (marcar como “cancelado”) una reserva
 app.delete('/reservas/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   try {
@@ -640,12 +647,12 @@ app.delete('/reservas/:id', async (req, res) => {
 
 
 
-// --------------------------------------------------------
-// 7) EXPORTACIÓN PARA VERSEL Y ARRANQUE LOCAL
-// --------------------------------------------------------
+// =====================================================
+// 10) EXPORTACIÓN PARA VERCEL Y ARRANQUE LOCAL
+// =====================================================
 module.exports = app;
 
-// Si se ejecuta directamente con `node app.js`, se levanta el servidor
+// Si se ejecuta directamente con `node app.js`, se levanta el servidor en local:
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
